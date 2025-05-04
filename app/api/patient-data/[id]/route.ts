@@ -23,7 +23,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
-) {
+): Promise<NextResponse> {
   try {
     console.log('Received update request for ID:', params.id);
     
