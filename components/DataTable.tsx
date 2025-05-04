@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface PatientData {
   _id: string;
@@ -52,7 +53,48 @@ export default function DataTable({ data, onEdit, onDelete }: DataTableProps) {
   }, [data, monthFilter, examFilter]);
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('هل أنت متأكد من حذف هذه البيانات؟')) {
+    const promise = new Promise((resolve, reject) => {
+      toast.custom(
+        (t) => (
+          <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex flex-col ring-1 ring-black ring-opacity-5`}>
+            <div className="p-4">
+              <div className="flex items-start">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    هل أنت متأكد من حذف هذه البيانات؟
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex border-t border-gray-200">
+              <button
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  resolve(true);
+                }}
+                className="w-full border border-transparent rounded-none rounded-l-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none"
+              >
+                نعم، احذف
+              </button>
+              <button
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  resolve(false);
+                }}
+                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-gray-600 hover:text-gray-500 focus:outline-none"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        ),
+        { duration: Infinity }
+      );
+    });
+
+    const confirmed = await promise;
+
+    if (confirmed) {
       try {
         const response = await fetch(`/api/patient-data/${id}`, {
           method: 'DELETE',
@@ -60,52 +102,73 @@ export default function DataTable({ data, onEdit, onDelete }: DataTableProps) {
 
         if (response.ok) {
           onDelete?.(id);
-          alert('تم حذف البيانات بنجاح');
+          toast.success('تم حذف البيانات بنجاح');
         } else {
-          alert('حدث خطأ أثناء حذف البيانات');
+          toast.error('حدث خطأ أثناء حذف البيانات');
         }
       } catch (error) {
         console.error('Error deleting data:', error);
-        alert('حدث خطأ أثناء حذف البيانات');
+        toast.error('حدث خطأ أثناء حذف البيانات');
       }
     }
   };
 
-  const exportToExcel = () => {
-    // تحضير البيانات للتصدير
-    const exportData = filteredData.map(item => ({
-      'Scanner Manufacturer': item.scannerManufacturer || '',
-      'Scanner Model': item.scannerModel || '',
-      'Month': item.month || '',
-      'Gender': item.gender || '',
-      'Age': item.age || '',
-      'Weight (Kg)': item.weight || '',
-      'Modality': item.modality || '',
-      'Exam Description': item.examDescription || '',
-      'Series Projection (AP, PA, LAT)': item.projection || '',
-      'AEC/Manual': item.aecManual || '',
-      'kVp': item.kvp || '',
-      'mAs': item.mas || '',
-      'DAP (Gy.cm²)': item.dap || '',
-      'Grid': item.grid || '',
-      'Focal Spot Size': item.focalSpot || '',
-      'SID (cm)': item.sid || '',
-      'Collimation (cm²)': item.collimation || '',
-      'Tube output (mGy/mAs@SID)': item.tubeOutput || '',
-      'Created At': new Date(item.createdAt).toLocaleString()
-    }));
+  const handleExport = async () => {
+    try {
+      // تحضير البيانات للتصدير
+      const exportData = filteredData.map(item => ({
+        'Scanner Manufacturer': item.scannerManufacturer || '',
+        'Scanner Model': item.scannerModel || '',
+        'Month': item.month || '',
+        'Gender': item.gender || '',
+        'Age': item.age || '',
+        'Weight (Kg)': item.weight || '',
+        'Modality': item.modality || '',
+        'Exam Description': item.examDescription || '',
+        'Series Projection (AP, PA, LAT)': item.projection || '',
+        'AEC/Manual': item.aecManual || '',
+        'kVp': item.kvp || '',
+        'mAs': item.mas || '',
+        'DAP (Gy.cm²)': item.dap || '',
+        'Grid': item.grid || '',
+        'Focal Spot Size': item.focalSpot || '',
+        'SID (cm)': item.sid || '',
+        'Collimation (cm²)': item.collimation || '',
+        'Tube output (mGy/mAs@SID)': item.tubeOutput || '',
+        'Created At': new Date(item.createdAt).toLocaleString()
+      }));
 
-    // إنشاء ورقة عمل Excel
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Patient Data');
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Patient Data');
 
-    // تصدير الملف
-    XLSX.writeFile(wb, 'patient_data.xlsx');
+      // Add headers
+      const headers = Object.keys(exportData[0]);
+      worksheet.addRow(headers);
+
+      // Add data
+      exportData.forEach((row: Record<string, string | number | null>) => {
+        worksheet.addRow(Object.values(row));
+      });
+
+      // Generate Excel file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'patient_data.xlsx';
+      link.click();
+      window.URL.revokeObjectURL(url);
+      toast.success('تم تصدير البيانات بنجاح');
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      toast.error('حدث خطأ أثناء تصدير البيانات');
+    }
   };
 
   return (
     <div className="mt-8">
+      <Toaster position="top-center" reverseOrder={false} />
       <div className="flex gap-4 mb-4">
         <select
           value={monthFilter}
@@ -129,7 +192,7 @@ export default function DataTable({ data, onEdit, onDelete }: DataTableProps) {
         </select>
 
         <button
-          onClick={exportToExcel}
+          onClick={handleExport}
           className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
         >
           Export to Excel

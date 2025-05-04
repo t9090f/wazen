@@ -8,13 +8,6 @@ export async function POST(request: Request) {
     
     const data = await request.json();
     
-    if (!data.scannerManufacturer || !data.scannerModel || !data.month) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-
     const newData = {
       ...data,
       createdAt: new Date()

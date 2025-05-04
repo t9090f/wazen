@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import DataTable from '../components/DataTable';
+import toast from 'react-hot-toast';
+import { Toaster } from 'react-hot-toast';
 
 type PatientData = {
   _id: string;
@@ -62,27 +64,78 @@ export default function Home() {
 
   const onSubmit = async (formData: PatientData) => {
     try {
-      const response = await fetch('/api/patient-data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
+      if (editingData) {
+        // تحديث البيانات
+        const { _id, createdAt, ...updateData } = formData;
+        
+        // تحويل القيم الفارغة إلى null
+        const processedData = Object.entries(updateData).reduce((acc, [key, value]) => {
+          if (value === '') {
+            acc[key] = null;
+          } else if (typeof value === 'string' && !isNaN(Number(value))) {
+            acc[key] = Number(value);
+          } else {
+            acc[key] = value;
+          }
+          return acc;
+        }, {} as Record<string, any>);
+        
+        console.log('Sending update request for ID:', editingData._id);
+        console.log('Update data:', processedData);
+        
+        try {
+          const updateResponse = await fetch(`/api/patient-data/${editingData._id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(processedData),
+          });
 
-      if (response.ok) {
-        const newData = await response.json();
-        setData([newData, ...data]);
-        reset();
-        setEditingData(null);
-        alert('تم حفظ البيانات بنجاح');
+          if (!updateResponse.ok) {
+            const errorData = await updateResponse.json();
+            console.error('Update failed:', errorData);
+            throw new Error(errorData.error || 'Failed to update data');
+          }
+
+          const updatedData = await updateResponse.json();
+          console.log('Update successful:', updatedData);
+          
+          // تحديث البيانات في الواجهة
+          setData(prevData => prevData.map(item => 
+            item._id === editingData._id ? updatedData : item
+          ));
+          
+          toast.success('تم تحديث البيانات بنجاح');
+          reset();
+          setEditingData(null);
+        } catch (error) {
+          console.error('Error updating data:', error);
+          toast.error('حدث خطأ أثناء تحديث البيانات');
+        }
       } else {
-        const error = await response.json();
-        alert(error.error || 'حدث خطأ أثناء حفظ البيانات');
+        // إضافة بيانات جديدة
+        const response = await fetch('/api/patient-data', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to save data');
+        }
+
+        const newData = await response.json();
+        setData(prevData => [newData, ...prevData]);
+        toast.success('تم حفظ البيانات بنجاح');
+        reset();
       }
     } catch (error) {
       console.error('Error submitting data:', error);
-      alert('حدث خطأ أثناء حفظ البيانات');
+      toast.error(error instanceof Error ? error.message : 'حدث خطأ أثناء حفظ البيانات');
     }
   };
 
@@ -100,7 +153,8 @@ export default function Home() {
   };
 
   return (
-    <div className="container mx-auto p-4">
+    <main className="container mx-auto px-4 py-8">
+      <Toaster position="top-center" reverseOrder={false} />
       <h1 className="text-4xl font-bold mb-6 text-center bg-gradient-to-r from-blue-600 to-blue-800 text-transparent bg-clip-text py-2">
         WAZEN Indicator For Patients Radiation Dose
       </h1>
@@ -264,6 +318,6 @@ export default function Home() {
       </form>
       
       <DataTable data={data} onEdit={handleEdit} onDelete={handleDelete} />
-    </div>
+    </main>
   );
 } 
