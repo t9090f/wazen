@@ -22,12 +22,12 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
-    console.log('Received update request for ID:', params.id);
+    console.log('Received update request for ID:', context.params.id);
     
-    if (!params.id) {
+    if (!context.params.id) {
       console.error('No ID provided');
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
@@ -38,8 +38,8 @@ export async function PUT(
     
     console.log('Request body:', body);
 
-    if (!ObjectId.isValid(params.id)) {
-      console.error('Invalid MongoDB ID format:', params.id);
+    if (!ObjectId.isValid(context.params.id)) {
+      console.error('Invalid MongoDB ID format:', context.params.id);
       return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
     }
 
@@ -63,9 +63,9 @@ export async function PUT(
     console.log('Processed update data:', processedData);
 
     // التحقق من وجود المستند أولاً
-    const existingDoc = await db.collection('patient_data').findOne({ _id: new ObjectId(params.id) });
+    const existingDoc = await db.collection('patient_data').findOne({ _id: new ObjectId(context.params.id) });
     if (!existingDoc) {
-      console.error('Document not found for ID:', params.id);
+      console.error('Document not found for ID:', context.params.id);
       return NextResponse.json({ error: 'Data not found' }, { status: 404 });
     }
 
@@ -74,12 +74,12 @@ export async function PUT(
     try {
       // تحديث المستند
       await db.collection('patient_data').updateOne(
-        { _id: new ObjectId(params.id) },
+        { _id: new ObjectId(context.params.id) },
         { $set: processedData }
       );
 
       // جلب المستند المحدث
-      const updatedDoc = await db.collection('patient_data').findOne({ _id: new ObjectId(params.id) });
+      const updatedDoc = await db.collection('patient_data').findOne({ _id: new ObjectId(context.params.id) });
       
       if (!updatedDoc) {
         console.error('Failed to retrieve updated document');
