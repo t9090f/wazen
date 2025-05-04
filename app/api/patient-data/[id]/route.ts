@@ -2,21 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import clientPromise from '../../../../lib/mongodb';
 
-type RouteSegment = {
+interface RequestContext {
   params: {
     id: string;
   };
-};
+}
 
 export async function DELETE(
   request: NextRequest,
-  segment: RouteSegment
+  context: RequestContext
 ): Promise<NextResponse> {
   try {
     const client = await clientPromise;
     const db = client.db(process.env.MONGODB_DB);
 
-    const result = await db.collection('patient_data').deleteOne({ _id: new ObjectId(segment.params.id) });
+    const result = await db.collection('patient_data').deleteOne({ _id: new ObjectId(context.params.id) });
 
     if (result.deletedCount === 0) {
       return NextResponse.json({ error: 'Data not found' }, { status: 404 });
@@ -31,12 +31,12 @@ export async function DELETE(
 
 export async function PUT(
   request: NextRequest,
-  segment: RouteSegment
+  context: RequestContext
 ): Promise<NextResponse> {
   try {
-    console.log('Received update request for ID:', segment.params.id);
+    console.log('Received update request for ID:', context.params.id);
     
-    if (!segment.params.id) {
+    if (!context.params.id) {
       console.error('No ID provided');
       return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
@@ -47,8 +47,8 @@ export async function PUT(
     
     console.log('Request body:', body);
 
-    if (!ObjectId.isValid(segment.params.id)) {
-      console.error('Invalid MongoDB ID format:', segment.params.id);
+    if (!ObjectId.isValid(context.params.id)) {
+      console.error('Invalid MongoDB ID format:', context.params.id);
       return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
     }
 
@@ -72,9 +72,9 @@ export async function PUT(
     console.log('Processed update data:', processedData);
 
     // التحقق من وجود المستند أولاً
-    const existingDoc = await db.collection('patient_data').findOne({ _id: new ObjectId(segment.params.id) });
+    const existingDoc = await db.collection('patient_data').findOne({ _id: new ObjectId(context.params.id) });
     if (!existingDoc) {
-      console.error('Document not found for ID:', segment.params.id);
+      console.error('Document not found for ID:', context.params.id);
       return NextResponse.json({ error: 'Data not found' }, { status: 404 });
     }
 
@@ -83,12 +83,12 @@ export async function PUT(
     try {
       // تحديث المستند
       await db.collection('patient_data').updateOne(
-        { _id: new ObjectId(segment.params.id) },
+        { _id: new ObjectId(context.params.id) },
         { $set: processedData }
       );
 
       // جلب المستند المحدث
-      const updatedDoc = await db.collection('patient_data').findOne({ _id: new ObjectId(segment.params.id) });
+      const updatedDoc = await db.collection('patient_data').findOne({ _id: new ObjectId(context.params.id) });
       
       if (!updatedDoc) {
         console.error('Failed to retrieve updated document');
